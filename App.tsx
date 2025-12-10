@@ -3,19 +3,36 @@ import Setup from './components/Setup';
 import ChatMode from './components/ChatMode';
 import VoiceMode from './components/VoiceMode';
 import MemoryWall from './components/MemoryWall';
+import ApiKeyPrompt from './components/ApiKeyPrompt';
 import { PetProfile, AppView } from './types';
-import { MessageCircle, Mic, Image, Settings, Sparkles } from 'lucide-react';
+import { MessageCircle, Mic, Image, Sparkles, Key } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.SETUP);
   const [profile, setProfile] = useState<PetProfile | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [isEditingKey, setIsEditingKey] = useState(false);
 
-  // Simple persistence
+  // Initialize: Check env, then local storage
   useEffect(() => {
-    const saved = localStorage.getItem('spiritPawsProfile');
-    if (saved) {
-      setProfile(JSON.parse(saved));
+    // 1. Check Profile
+    const savedProfile = localStorage.getItem('spiritPawsProfile');
+    if (savedProfile) {
+      setProfile(JSON.parse(savedProfile));
       setView(AppView.HOME);
+    }
+
+    // 2. Check API Key
+    // process.env.API_KEY is replaced at build time. 
+    // We check if it is a non-empty string.
+    const envKey = process.env.API_KEY;
+    if (envKey && envKey.length > 0 && envKey !== 'undefined') {
+        setApiKey(envKey);
+    } else {
+        const localKey = localStorage.getItem('user_gemini_api_key');
+        if (localKey) {
+            setApiKey(localKey);
+        }
     }
   }, []);
 
@@ -25,20 +42,42 @@ const App: React.FC = () => {
     setView(AppView.HOME);
   };
 
-  const handleReset = () => {
-    if(confirm("Are you sure you want to release this spirit connection? All data will be reset.")) {
-        localStorage.removeItem('spiritPawsProfile');
-        setProfile(null);
-        setView(AppView.SETUP);
-    }
+  const handleApiKeySave = (key: string) => {
+      localStorage.setItem('user_gemini_api_key', key);
+      setApiKey(key);
+      setIsEditingKey(false);
   };
+  
+  const handleEditKey = () => {
+      // Enter edit mode immediately
+      setIsEditingKey(true);
+  };
+
+  const handleCancelEditKey = () => {
+      // Exit edit mode without changing anything
+      setIsEditingKey(false);
+  };
+
+  // Show prompt if:
+  // 1. No API key is set
+  // 2. User explicitly requested to edit the key
+  const showApiKeyPrompt = !apiKey || isEditingKey;
+
+  if (showApiKeyPrompt) {
+      return (
+        <ApiKeyPrompt 
+            onSave={handleApiKeySave} 
+            onCancel={apiKey ? handleCancelEditKey : undefined} 
+        />
+      );
+  }
 
   if (view === AppView.SETUP) {
     return <Setup onComplete={handleSetupComplete} />;
   }
 
-  if (view === AppView.VOICE && profile) {
-      return <VoiceMode profile={profile} onHangup={() => setView(AppView.HOME)} />;
+  if (view === AppView.VOICE && profile && apiKey) {
+      return <VoiceMode profile={profile} apiKey={apiKey} onHangup={() => setView(AppView.HOME)} />;
   }
 
   return (
@@ -46,7 +85,7 @@ const App: React.FC = () => {
         {/* Navbar */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
             <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-                <div className="flex items-center gap-2" onClick={() => setView(AppView.HOME)} role="button">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView(AppView.HOME)}>
                     <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-amber-600" />
                     </div>
@@ -75,12 +114,16 @@ const App: React.FC = () => {
                         <Image className="w-4 h-4" />
                         <span className="hidden sm:inline">Gallery</span>
                     </button>
+                    
+                    {/* Key Management */}
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                    
                     <button
-                        onClick={handleReset}
-                        className="ml-2 p-2 text-slate-400 hover:text-red-500 transition"
-                        title="Reset Profile"
+                        onClick={handleEditKey}
+                        className="p-2 text-slate-400 hover:text-amber-600 transition"
+                        title="Update API Key"
                     >
-                        <Settings className="w-4 h-4" />
+                        <Key className="w-4 h-4" />
                     </button>
                 </nav>
             </div>
@@ -138,7 +181,7 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {view === AppView.CHAT && <ChatMode profile={profile} onBack={() => setView(AppView.HOME)} />}
+                    {view === AppView.CHAT && <ChatMode profile={profile} apiKey={apiKey!} onBack={() => setView(AppView.HOME)} />}
                     {view === AppView.GALLERY && <MemoryWall profile={profile} />}
                 </>
             )}

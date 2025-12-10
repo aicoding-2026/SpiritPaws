@@ -5,10 +5,11 @@ import { Send, Cat, Loader2, ArrowLeft } from 'lucide-react';
 
 interface ChatModeProps {
   profile: PetProfile;
+  apiKey: string;
   onBack: () => void;
 }
 
-const ChatMode: React.FC<ChatModeProps> = ({ profile, onBack }) => {
+const ChatMode: React.FC<ChatModeProps> = ({ profile, apiKey, onBack }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'init',
@@ -43,7 +44,11 @@ const ChatMode: React.FC<ChatModeProps> = ({ profile, onBack }) => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      if (!apiKey) {
+        throw new Error("API_KEY not found");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const systemInstruction = `
         You are acting as the spirit of a deceased pet cat named ${profile.name}.
         Breed: ${profile.breed}.
@@ -81,12 +86,18 @@ const ChatMode: React.FC<ChatModeProps> = ({ profile, onBack }) => {
         timestamp: Date.now()
       }]);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
+      let errorMessage = "*Hisses at a connection shadow* (Something went wrong, please try again)";
+      
+      if (error.message.includes("API_KEY")) {
+         errorMessage = "*Confused meow* (System: API Key is missing. Please check your settings.)";
+      }
+
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: "*Hisses at a connection shadow* (Something went wrong, please try again)",
+        text: errorMessage,
         timestamp: Date.now()
       }]);
     } finally {
