@@ -1,0 +1,7 @@
+{
+  "name": "Spirit Paws",
+  "description": "A digital memorial and interactive companion to keep the memory of your beloved pet alive using Gemini AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
